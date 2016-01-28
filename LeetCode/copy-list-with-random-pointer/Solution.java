@@ -12,12 +12,14 @@ import java.util.Map;
 public class Solution {
     public RandomListNode copyRandomList(RandomListNode head) {
     	if(head == null) return null;
-        RandomListNode newHead = new RandomListNode(head.label);
-        RandomListNode newNext = newHead;
-        RandomListNode next = head.next; 
 
         Map<RandomListNode, RandomListNode> map = 
-        	new HashMap<RandomListNode, RandomListNode>();
+            new HashMap<RandomListNode, RandomListNode>();
+
+        RandomListNode newHead = new RandomListNode(head.label);
+        map.put(head, newHead);
+        RandomListNode newNext = newHead;
+        RandomListNode next = head.next; 
 
         while(next != null){
         	newNext.next = new RandomListNode(next.label);
@@ -28,13 +30,13 @@ public class Solution {
         }
 
         newNext = newHead;
-        next = head.random;
+        next = head;
 
-        while(next != null && newNext != null){
-        	newNext.random = map.get(next);
-        	newNext = newNext.random;
+        while(next != null){
+        	newNext.random = map.get(next.random);
+        	newNext = newNext.next;
 
-        	next = next.random;
+            next = next.next;
         }
 
         return newHead;
