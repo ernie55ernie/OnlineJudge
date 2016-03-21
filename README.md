@@ -1,8 +1,8 @@
 # OnlineJudge
 
 # NTUJudge
-http://acm.csie.org/ntujudge/index.php
-https://judgegirl.csie.org
+[NTU ACM judge](http://acm.csie.org/ntujudge/index.php)
+[NTU judge girl](https://judgegirl.csie.org)
 
 # LeetCode
 https://leetcode.com
