@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "matrix.h"
  
-#define DEBUG
+// #define DEBUG
 #define UINT unsigned long
 #define MAXN 2048
 void rand_gen(UINT c, int N, UINT A[][MAXN]) {
@@ -38,9 +38,7 @@ int main() {
     while (scanf("%d %d %d", &N, &S1, &S2) == 3) {
         printf("%d %d %d\n", N, S1, S2);
         rand_gen(S1, N, A);
-        printf("after 1 gen");
         rand_gen(S2, N, B);
-        printf("after gen");
         multiply(N, A, B, C);
 #ifdef DEBUG
         print_matrix(N, A);
