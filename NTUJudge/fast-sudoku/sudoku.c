@@ -23,7 +23,6 @@ int placeNumber(int n, int border[N][N], int conflict[N][N][N + 1]){
 		return placeNumber(n + 1, border, conflict);
 	int numSolution = 0;
 	for(int try = 1; try < N + 1; try++){
-		//printf("row:%d, col:%d, try:%d, conflict[row][col][try]:%d\n", row, col, try, conflict[row][col][try]);
 		if(conflict[row][col][try]){
 			continue;
 		}
@@ -57,7 +56,6 @@ int main(){
 	int block_col = col / 3;
 #pragma omp parallel for reduction(+ : numSolution) firstprivate(border, conflict) schedule(dynamic)
 	for(int try = 1; try < N + 1; try++){
-		//printf("row:%d, col:%d, try:%d, conflict[row][col][try]:%d\n", row, col, try, conflict[row][col][try]);
 		if(conflict[row][col][try]){
 			continue;
 		}
