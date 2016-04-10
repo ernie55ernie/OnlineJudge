@@ -2,16 +2,20 @@
 
 #define N 9
 
-void makeConflict(int conflict[N][N][N + 1], int row, int col, int num, int value){
-	int block_row = row / 3;
-	int block_col = col / 3;
-	for(int i = 0; i < N; i++){
-		conflict[row][i][num] = value;
-		conflict[i][col][num] = value;
+void makeConflict(int conflict[N][N][N + 1], int border[N][N]){
+	for(int index = 0; index < N * N; index++){
+		int row = index / N;
+		int col = index % N;
+		int block_row = row / 3;
+		int block_col = col / 3;
+		for(int i = 0; i < N; i++){
+			conflict[row][i][border[row][col]] = 1;
+			conflict[i][col][border[row][col]] = 1;
+		}
+		for(int i = 0; i < 3; i++)
+			for(int j = 0; j < 3; j++)
+				conflict[3 * block_row + i][3 * block_col + j][border[row][col]] = 1;
 	}
-	for(int i = 0; i < 3; i++)
-		for(int j = 0; j < 3; j++)
-			conflict[3 * block_row + i][3 * block_col + j][num] = value;
 }
 
 int placeNumber(int n, int border[N][N], int conflict[N][N][N + 1]){
@@ -26,10 +30,11 @@ int placeNumber(int n, int border[N][N], int conflict[N][N][N + 1]){
 		if(conflict[row][col][try]){
 			continue;
 		}
-		makeConflict(conflict, row, col, try, 1);
 		border[row][col] = try;
+		makeConflict(conflict, border);
 		numSolution += placeNumber(n + 1, border, conflict);
-		makeConflict(conflict, row, col, try, 0);
+		border[row][col] = 0;
+		makeConflict(conflict, border);
 	}
 	border[row][col] = 0;
 	return numSolution;
@@ -44,9 +49,6 @@ int main(){
 			scanf("%d", &border[i][j]);
 			if(border[i][j] == 0 && firstZero == -1)
 				firstZero = i * N + j;
-			if(border[i][j]){
-				makeConflict(conflict, i, j, border[i][j], 1);
-			}
 		}
 	}
 	int numSolution = 0;
@@ -59,10 +61,11 @@ int main(){
 		if(conflict[row][col][try]){
 			continue;
 		}
-		makeConflict(conflict, row, col, try, 1);
 		border[row][col] = try;
+		makeConflict(conflict, border);
 		numSolution += placeNumber(firstZero + 1, border, conflict);
-		makeConflict(conflict, row, col, try, 0);
+		border[row][col] = 0;
+		makeConflict(conflict, border);
 	}
 	printf("%d\n", numSolution);
 	return 0;
