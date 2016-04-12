@@ -22,7 +22,7 @@ int live(int index){
 }
 
 void iteration(){
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(auto)
 	for(int i = 1; i <= n; i++){
 		for(int j = 1; j <= n; j++){
 			int index = i * (n + 2) + j;
@@ -41,7 +41,7 @@ void iteration(){
 void print_plate(){
 	for(int i = 1; i <= n; i++){
 		for(int j = 1; j <= n; j++){
-			printf("%d", plate[which][i * (n + 2) + j]);
+			printf("%c", plate[which][i * (n + 2) + j] + '0');
 		}
 		printf("\n");
 	}
