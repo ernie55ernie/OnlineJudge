@@ -52,10 +52,19 @@ int main(){
 			}
 		}
 #pragma omp parallel for private(position) reduction(+ : numSolution) schedule(dynamic)
-		for(int test = 0; test < n; test++){
-			if(ok(position, 0, test)){
-				position[0] = test;
-				numSolution += queen(position, 1);
+		for(int test = 0; test < n * n * n * n; test++){
+			if(ok(position, 0, test / n / n / n)){
+				position[0] = test / n / n / n;
+				if(ok(position, 1, test / n / n % n)){
+					position[1] = test / n / n % n;
+					if(ok(position, 2, test / n % n)){
+						position[2] = test / n % n;
+						if(ok(position, 3, test % n)){
+							position[3] = test % n;
+							numSolution += queen(position, 4);
+						}
+					}
+				}
 			}
 		}
 		printf("Case %d: %d\n", ++case_num, numSolution);
