@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <assert.h>
 #include "utils.h"
+#include <CL/cl.h>
  
 #define MAXGPU 8
 #define MAXCODESZ 32767
@@ -34,7 +35,7 @@ int main(int argc, char *argv[]) {
         cl_context context = clCreateContext(NULL, GPU_id_got, GPU, NULL, NULL, &status);
         assert(status == CL_SUCCESS);
 
-        cl_command_quene commandQuene = clCreateCommandQueue(contxet, GPU[0], 0, &status);
+        cl_command_queue commandQueue = clCreateCommandQueue(context, GPU[0], 0, &status);
         assert(status == CL_SUCCESS);
 
         FILE *kernelfp = fopen("vecdot.cl", "r");
@@ -49,7 +50,7 @@ int main(int argc, char *argv[]) {
         status = clBuildProgram(program, GPU_id_got, GPU, NULL, NULL, NULL);
         assert(status == CL_SUCCESS);
 
-        cl_kernel kernel = clCreateKernel(progarm, "dot", &status);
+        cl_kernel kernel = clCreateKernel(program, "dot", &status);
         assert(status == CL_SUCCESS);
 
         cl_mem bufferA = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, N * sizeof(cl_uint), A, &status);
@@ -68,7 +69,7 @@ int main(int argc, char *argv[]) {
 
         size_t globalThreads[] = {(size_t)N};
         size_t localThreads[] = {1};
-        status = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, 0, NULL, NULL);
+        status = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, globalThreads, localThreads, 0, NULL, NULL);
         assert(status == CL_SUCCESS);
 
         clEnqueueReadBuffer(commandQueue, bufferC, CL_TRUE, 0, N * sizeof(cl_uint), C, 0, NULL, NULL);
