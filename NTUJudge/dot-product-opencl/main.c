@@ -4,10 +4,15 @@
 #include <inttypes.h>
 #include <assert.h>
 #include "utils.h"
-#include <CL/cl.h>
+#ifdef __APPLE__
+  #include <OpenCL/opencl.h>
+#else
+  #include <CL/cl.h>
+#endif
  
 #define MAXGPU 8
 #define MAXCODESZ 32767
+#define MAXK 1024
 #define MAXN 16777216
 static cl_uint A[MAXN], B[MAXN], C[MAXN];
 int main(int argc, char *argv[]) {
@@ -40,17 +45,21 @@ int main(int argc, char *argv[]) {
 
         FILE *kernelfp = fopen("vecdot.cl", "r");
         assert(kernelfp != NULL);
-        char kernelBuffer[MAXCODESZ];
+        char kernelBuffer[MAXK];
         const char *constKernelSource = kernelBuffer;
-        size_t kernelLength = fread(kernelBuffer, 1, MAXCODESZ, kernelfp);
+        size_t kernelLength = fread(kernelBuffer, 1, MAXK, kernelfp);
 
         cl_program program = clCreateProgramWithSource(context, 1, &constKernelSource, &kernelLength, &status);
         assert(status == CL_SUCCESS);
 
-        status = clBuildProgram(program, GPU_id_got, GPU, NULL, NULL, NULL);
-        assert(status == CL_SUCCESS);
+        if (clBuildProgram(program, GPU_id_got, GPU, NULL, NULL, NULL) != CL_SUCCESS) {
+            char buffer[10240];
+            clGetProgramBuildInfo(program, GPU[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
+            fprintf(stderr, "CL Compilation failed:\n%s", buffer);
+            abort();
+        }
 
-        cl_kernel kernel = clCreateKernel(program, "dot", &status);
+        cl_kernel kernel = clCreateKernel(program, "vecdot", &status);
         assert(status == CL_SUCCESS);
 
         cl_mem bufferA = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, N * sizeof(cl_uint), A, &status);
