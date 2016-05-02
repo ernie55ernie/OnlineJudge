@@ -30,26 +30,20 @@ int main(int argc, char *argv[]) {
         cl_platform_id platform_id;
         cl_uint platform_id_got;
         status = clGetPlatformIDs(1, &platform_id, &platform_id_got);
-        if(status != CL_SUCCESS && platform_id_got != 1){
-            abort();
+        if(status != CL_SUCCESS){
+            return 1;
         }
 
         cl_device_id GPU[MAXGPU];
         cl_uint GPU_id_got;
         status = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, MAXGPU, GPU, &GPU_id_got);
         if(status != CL_SUCCESS){
-            abort();
+            return 1;
         };
 
         cl_context context = clCreateContext(NULL, GPU_id_got, GPU, NULL, NULL, &status);
         if(status != CL_SUCCESS){
-            abort();
-        }
-
-        cl_command_queue commandQueue = clCreateCommandQueue(context, GPU[0], 0, &status);
-        if(status != CL_SUCCESS){
-            clReleaseContext(context);
-            abort();
+            return 1;
         }
 
         FILE *kernelfp = fopen("vecdot.cl", "r");
@@ -61,8 +55,7 @@ int main(int argc, char *argv[]) {
         cl_program program = clCreateProgramWithSource(context, 1, &constKernelSource, &kernelLength, &status);
         if(status != CL_SUCCESS){
             clReleaseContext(context);
-            clReleaseCommandQueue(commandQueue);
-            abort();
+            return 1;
         }
 
         if (clBuildProgram(program, GPU_id_got, GPU, NULL, NULL, NULL) != CL_SUCCESS) {
@@ -71,114 +64,68 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "CL Compilation failed:\n%s", buffer);
 
             clReleaseContext(context);
-            clReleaseCommandQueue(commandQueue);
             clReleaseProgram(program);
-            abort();
+            return 1;
         }
 
-        cl_kernel kernel = clCreateKernel(program, "vecdot", &status);
-        if(status != CL_SUCCESS){
-            clReleaseKernel(kernel);
-            clReleaseContext(context);
-            clReleaseCommandQueue(commandQueue);
-            clReleaseProgram(program);
-            abort();
-        }
+        int n_per_device[GPU_id_got];
+        cl_command_queue queues[GPU_id_got];
+        cl_kernel kernels[GPU_id_got];
+        cl_mem bufferAs[GPU_id_got];
+        cl_mem bufferBs[GPU_id_got];
+        cl_mem bufferCs[GPU_id_got];
+        unsigned i;
+        unsigned offset = 0;
+        for(i = 0; i < GPU_id_got; i++){
+            queues[i] = clCreateCommandQueue(context, GPU[i], 0, &status);
+            if(status != CL_SUCCESS){
+                clReleaseContext(context);
+                clReleaseProgram(program);
+                return 1;
+            }
 
-        cl_mem bufferA = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, N * sizeof(cl_uint), A, &status);
-        if(status != CL_SUCCESS){
-            clReleaseMemObject(bufferA);
-            clReleaseKernel(kernel);
-            clReleaseContext(context);
-            clReleaseCommandQueue(commandQueue);
-            clReleaseProgram(program);
-            abort();
-        }
-        cl_mem bufferB = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, N * sizeof(cl_uint), B, &status);
-        assert(status == CL_SUCCESS);
-        if(status != CL_SUCCESS){
-            clReleaseMemObject(bufferB);
-            clReleaseMemObject(bufferA);
-            clReleaseKernel(kernel);
-            clReleaseContext(context);
-            clReleaseCommandQueue(commandQueue);
-            clReleaseProgram(program);
-            abort();
-        }
-        cl_mem bufferC = clCreateBuffer(context, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, N * sizeof(cl_uint), C, &status);
-        if(status != CL_SUCCESS){
-            clReleaseMemObject(bufferC);
-            clReleaseMemObject(bufferB);
-            clReleaseMemObject(bufferA);
-            clReleaseKernel(kernel);
-            clReleaseContext(context);
-            clReleaseCommandQueue(commandQueue);
-            clReleaseProgram(program);
-            abort();
-        }
- 
-        status = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferA);
-        if(status != CL_SUCCESS){
-            clReleaseMemObject(bufferC);
-            clReleaseMemObject(bufferB);
-            clReleaseMemObject(bufferA);
-            clReleaseKernel(kernel);
-            clReleaseContext(context);
-            clReleaseCommandQueue(commandQueue);
-            clReleaseProgram(program);
-            abort();
-        }
-        status = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&bufferB);
-        if(status != CL_SUCCESS){
-            clReleaseMemObject(bufferC);
-            clReleaseMemObject(bufferB);
-            clReleaseMemObject(bufferA);
-            clReleaseKernel(kernel);
-            clReleaseContext(context);
-            clReleaseCommandQueue(commandQueue);
-            clReleaseProgram(program);
-            abort();
-        }
-        status = clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&bufferC);
-        if(status != CL_SUCCESS){
-            clReleaseMemObject(bufferC);
-            clReleaseMemObject(bufferB);
-            clReleaseMemObject(bufferA);
-            clReleaseKernel(kernel);
-            clReleaseContext(context);
-            clReleaseCommandQueue(commandQueue);
-            clReleaseProgram(program);
-            abort();
-        }
+            n_per_device[i] = N / GPU_id_got;
+            if(i < (N % GPU_id_got)){
+                n_per_device[i]++;
+            }
 
-        size_t globalThreads[] = {(size_t)N};
-        size_t localThreads[] = {1};
-        status = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, globalThreads, localThreads, 0, NULL, NULL);
-        if(status != CL_SUCCESS){
-            clReleaseMemObject(bufferC);
-            clReleaseMemObject(bufferB);
-            clReleaseMemObject(bufferA);
-            clReleaseKernel(kernel);
-            clReleaseContext(context);
-            clReleaseCommandQueue(commandQueue);
-            clReleaseProgram(program);
-            abort();
+            kernels[i] = clCreateKernel(program, "vecdot", &status);
+
+            bufferAs[i] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, n_per_device[i] * sizeof(cl_uint), &A[offset], &status);
+            
+            bufferBs[i] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, n_per_device[i] * sizeof(cl_uint), &B[offset], &status);
+            
+            bufferCs[i] = clCreateBuffer(context, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, n_per_device[i] * sizeof(cl_uint), &C[offset], &status);
+     
+            status = clSetKernelArg(kernels[i], 0, sizeof(cl_mem), (void*)&bufferAs[i]);
+            
+            status = clSetKernelArg(kernels[i], 1, sizeof(cl_mem), (void*)&bufferBs[i]);
+            
+            status = clSetKernelArg(kernels[i], 2, sizeof(cl_mem), (void*)&bufferCs[i]);
+
+            size_t globalworksize[] = {(size_t)n_per_device[i]};
+            //size_t globalworkoffset = (size_t)offset * sizeof(cl_uint);
+            size_t localworksize[] = {1};
+            status = clEnqueueNDRangeKernel(queues[i], kernels[i], 1, NULL, globalworksize, localworksize, 0, NULL, NULL);
+
+            clEnqueueReadBuffer(queues[i], bufferCs[i], CL_TRUE, 0, n_per_device[i] * sizeof(cl_uint), &C[offset], 0, NULL, NULL);
+            offset += n_per_device[i];
         }
-
-        clEnqueueReadBuffer(commandQueue, bufferC, CL_TRUE, 0, N * sizeof(cl_uint), C, 0, NULL, NULL);
-
+        
         uint32_t sum = 0;
-        for (int i = 0; i < N; i++)
+        for (i = 0; i < N; i++)
             sum += C[i];
         printf("%" PRIu32 "\n", sum);
 
         clReleaseContext(context);
-        clReleaseCommandQueue(commandQueue);
+        for(i = 0;i < GPU_id_got; i++){
+            clReleaseCommandQueue(queues[i]);
+            clReleaseKernel(kernels[i]);
+            clReleaseMemObject(bufferAs[i]);
+            clReleaseMemObject(bufferBs[i]);
+            clReleaseMemObject(bufferCs[i]);
+        }
         clReleaseProgram(program);
-        clReleaseKernel(kernel);
-        clReleaseMemObject(bufferA);
-        clReleaseMemObject(bufferB);
-        clReleaseMemObject(bufferC);
     }
     return 0;
 }
