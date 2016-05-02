@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <assert.h>
-#include <CL/cl.h>
+#ifdef __APPLE__
+  #include <OpenCL/opencl.h>
+#else
+  #include <CL/cl.h>
+#endif
 
 #define MAXB	256
 #define MAXPLATFORM	5
