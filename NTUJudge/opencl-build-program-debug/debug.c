@@ -7,11 +7,10 @@
   #include <CL/cl.h>
 #endif
  
-#define MAXGPU 8
-#define MAXK 1024
-#define MAXCODESZ 32767
+#define MAXGPU 16
+#define MAXK 2048
+#define MAXCODESZ 16777216
 int main(int argc, char *argv[]) {
-
     char filename[MAXK];
     scanf("%s", filename);
 
