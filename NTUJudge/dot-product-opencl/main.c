@@ -4,15 +4,10 @@
 #include <inttypes.h>
 #include <assert.h>
 #include "utils.h"
-#ifdef __APPLE__
-  #include <OpenCL/opencl.h>
-#else
-  #include <CL/cl.h>
-#endif
+#include <CL/cl.h>
  
 #define MAXGPU 8
 #define MAXCODESZ 32767
-#define MAXK 1024
 #define MAXN 16777216
 static cl_uint A[MAXN], B[MAXN], C[MAXN];
 int main(int argc, char *argv[]) {
@@ -30,102 +25,73 @@ int main(int argc, char *argv[]) {
         cl_platform_id platform_id;
         cl_uint platform_id_got;
         status = clGetPlatformIDs(1, &platform_id, &platform_id_got);
-        if(status != CL_SUCCESS){
-            return 1;
-        }
+        assert(status == CL_SUCCESS && platform_id_got == 1);
 
         cl_device_id GPU[MAXGPU];
         cl_uint GPU_id_got;
         status = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, MAXGPU, GPU, &GPU_id_got);
-        if(status != CL_SUCCESS){
-            return 1;
-        };
+        assert(status == CL_SUCCESS);
 
-        cl_context context = clCreateContext(NULL, GPU_id_got, GPU, NULL, NULL, &status);
+        cl_ulong number;
+        status = clGetDeviceInfo(GPU[0], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(cl_ulong), &number, NULL);
         if(status != CL_SUCCESS){
             return 1;
         }
+
+        cl_context context = clCreateContext(NULL, GPU_id_got, GPU, NULL, NULL, &status);
+        assert(status == CL_SUCCESS);
+
+        cl_command_queue commandQueue = clCreateCommandQueue(context, GPU[0], 0, &status);
+        assert(status == CL_SUCCESS);
 
         FILE *kernelfp = fopen("vecdot.cl", "r");
         assert(kernelfp != NULL);
-        char kernelBuffer[MAXK];
+        char kernelBuffer[MAXCODESZ];
         const char *constKernelSource = kernelBuffer;
-        size_t kernelLength = fread(kernelBuffer, 1, MAXK, kernelfp);
+        size_t kernelLength = fread(kernelBuffer, 1, MAXCODESZ, kernelfp);
 
         cl_program program = clCreateProgramWithSource(context, 1, &constKernelSource, &kernelLength, &status);
-        if(status != CL_SUCCESS){
-            clReleaseContext(context);
-            return 1;
-        }
+        assert(status == CL_SUCCESS);
 
-        if (clBuildProgram(program, GPU_id_got, GPU, NULL, NULL, NULL) != CL_SUCCESS) {
-            char buffer[10240];
-            clGetProgramBuildInfo(program, GPU[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
-            fprintf(stderr, "CL Compilation failed:\n%s", buffer);
+        status = clBuildProgram(program, GPU_id_got, GPU, NULL, NULL, NULL);
+        assert(status == CL_SUCCESS);
 
-            clReleaseContext(context);
-            clReleaseProgram(program);
-            return 1;
-        }
+        cl_kernel kernel = clCreateKernel(program, "vecdot", &status);
+        assert(status == CL_SUCCESS);
 
-        int n_per_device[GPU_id_got];
-        cl_command_queue queues[GPU_id_got];
-        cl_kernel kernels[GPU_id_got];
-        cl_mem bufferAs[GPU_id_got];
-        cl_mem bufferBs[GPU_id_got];
-        cl_mem bufferCs[GPU_id_got];
-        unsigned i;
-        unsigned offset = 0;
-        for(i = 0; i < GPU_id_got; i++){
-            queues[i] = clCreateCommandQueue(context, GPU[i], 0, &status);
-            if(status != CL_SUCCESS){
-                clReleaseContext(context);
-                clReleaseProgram(program);
-                return 1;
-            }
+        cl_mem bufferA = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, N * sizeof(cl_uint), A, &status);
+        assert(status == CL_SUCCESS);
+        cl_mem bufferB = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, N * sizeof(cl_uint), B, &status);
+        assert(status == CL_SUCCESS);
+        cl_mem bufferC = clCreateBuffer(context, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, N * sizeof(cl_uint), C, &status);
+        assert(status == CL_SUCCESS);
+ 
+        status = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferA);
+        assert(status == CL_SUCCESS);
+        status = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&bufferB);
+        assert(status == CL_SUCCESS);
+        status = clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&bufferC);
+        assert(status == CL_SUCCESS);
 
-            n_per_device[i] = N / GPU_id_got;
-            if(i < (N % GPU_id_got)){
-                n_per_device[i]++;
-            }
+        size_t globalThreads[] = {(size_t)N};
+        size_t localThreads[] = {number};
+        status = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, globalThreads, localThreads, 0, NULL, NULL);
+        assert(status == CL_SUCCESS);
 
-            kernels[i] = clCreateKernel(program, "vecdot", &status);
+        clEnqueueReadBuffer(commandQueue, bufferC, CL_TRUE, 0, N * sizeof(cl_uint), C, 0, NULL, NULL);
 
-            bufferAs[i] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, n_per_device[i] * sizeof(cl_uint), &A[offset], &status);
-            
-            bufferBs[i] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, n_per_device[i] * sizeof(cl_uint), &B[offset], &status);
-            
-            bufferCs[i] = clCreateBuffer(context, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, n_per_device[i] * sizeof(cl_uint), &C[offset], &status);
-     
-            status = clSetKernelArg(kernels[i], 0, sizeof(cl_mem), (void*)&bufferAs[i]);
-            
-            status = clSetKernelArg(kernels[i], 1, sizeof(cl_mem), (void*)&bufferBs[i]);
-            
-            status = clSetKernelArg(kernels[i], 2, sizeof(cl_mem), (void*)&bufferCs[i]);
-
-            size_t globalworksize[] = {(size_t)n_per_device[i]};
-            //size_t globalworkoffset = (size_t)offset * sizeof(cl_uint);
-            size_t localworksize[] = {1};
-            status = clEnqueueNDRangeKernel(queues[i], kernels[i], 1, NULL, globalworksize, localworksize, 0, NULL, NULL);
-
-            clEnqueueReadBuffer(queues[i], bufferCs[i], CL_TRUE, 0, n_per_device[i] * sizeof(cl_uint), &C[offset], 0, NULL, NULL);
-            offset += n_per_device[i];
-        }
-        
         uint32_t sum = 0;
-        for (i = 0; i < N; i++)
+        for (int i = 0; i < N; i++)
             sum += C[i];
         printf("%" PRIu32 "\n", sum);
 
         clReleaseContext(context);
-        for(i = 0;i < GPU_id_got; i++){
-            clReleaseCommandQueue(queues[i]);
-            clReleaseKernel(kernels[i]);
-            clReleaseMemObject(bufferAs[i]);
-            clReleaseMemObject(bufferBs[i]);
-            clReleaseMemObject(bufferCs[i]);
-        }
+        clReleaseCommandQueue(commandQueue);
         clReleaseProgram(program);
+        clReleaseKernel(kernel);
+        clReleaseMemObject(bufferA);
+        clReleaseMemObject(bufferB);
+        clReleaseMemObject(bufferC);
     }
     return 0;
 }
