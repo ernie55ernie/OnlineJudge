@@ -1,5 +1,6 @@
-__kernel void vecdot(__global int* A, __global int* B, __global int* C)
+__kernel void vecdot(__global int* A, __global int* B, __global int* C, int N)
 {
 	int idx = get_global_id(0);
-	C[idx] = A[idx] * B[idx];
+	if(idx < N)
+		C[idx] = A[idx] * B[idx];
 }
