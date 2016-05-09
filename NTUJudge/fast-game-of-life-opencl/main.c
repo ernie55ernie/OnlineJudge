@@ -9,7 +9,7 @@
 #define MAXGPU 8
 #define MAXFILE 1024
 
-int plate[2][(MAXN + 2) * (MAXN + 2)];
+int plate[2][(MAXN + 2) * (MAXN + 2)] = {0};
 int n;
 
 void print_plate(int flag){
@@ -34,9 +34,6 @@ int main(){
 	cl_program program;
 	cl_kernel kernel;
 	cl_mem buffer;
-
-	memset(plate[0], 0, sizeof(int) * (MAXN + 2) * (MAXN + 2));
-	memset(plate[1], 0, sizeof(int) * (MAXN + 2) * (MAXN + 2));
 
 	status = clGetPlatformIDs(1, &platform_id, &num_platform_id);
 	status = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, MAXGPU, device_ids, &num_device_id);
@@ -68,14 +65,19 @@ int main(){
 		}
 		buffer = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, 2 * (MAXN + 2) * (MAXN + 2) * sizeof(cl_uint), plate, &status);
 
+		int flag = 0;
 		status = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&buffer);
 		status = clSetKernelArg(kernel, 1, sizeof(int), (void*)&n);
-		status = clSetKernelArg(kernel, 2, sizeof(int), (void*)&M);
 		size_t global_dim[] = {MAXN, MAXN};
-		size_t local_dim[] = {16, 16};
-		status = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_dim, local_dim, 0, NULL, NULL);
+		size_t local_dim[] = {8, 8};
+
+		for(int i = 0; i < M; i++){
+			status = clSetKernelArg(kernel, 2, sizeof(int), (void*)&flag);
+			status = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_dim, local_dim, 0, NULL, NULL);
+			flag = !flag;
+		}
 		clEnqueueReadBuffer(command_queue, buffer, CL_TRUE, 0, 2 * (MAXN + 2) * (MAXN + 2) * sizeof(cl_uint), plate, 0, NULL, NULL);
-		
+
 		print_plate(M % 2 != 0);
 	}
 
