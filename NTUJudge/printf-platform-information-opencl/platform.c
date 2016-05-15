@@ -29,8 +29,8 @@ int main(int argc, char *argv[]){
 		printf("Platform Version %s\n", buffer);
 		clGetPlatformInfo(platform_id[i], CL_PLATFORM_PROFILE, MAXB, buffer, &length);
 		printf("Platform Profile %s\n", buffer);
-		if(buffer[length - 1] == '\0')
-			printf("There is a \\0.");
+		// if(buffer[length - 1] == '\0')
+		// 	printf("There is a \\0.");
 
 		cl_device_id devices[MAXDEVICE];
 		cl_device_id cpus[MAXCPU];
@@ -48,8 +48,8 @@ int main(int argc, char *argv[]){
 		for(int j = 0; j < device_id_got; j++){
 			clGetDeviceInfo(devices[j], CL_DEVICE_NAME, MAXB, buffer, &length);
 			printf("Device name %s\n", buffer);
-			if(buffer[length - 1] == '\0')
-				printf("There is a \\0.");
+			// if(buffer[length - 1] == '\0')
+			// 	printf("There is a \\0.");
 			cl_ulong number;
 			clGetDeviceInfo(devices[j], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &number, NULL);
 			printf("Global memory size %lld\n", (long long)number);
@@ -61,6 +61,6 @@ int main(int argc, char *argv[]){
 			printf("max # of work items in a work group %lld\n", (long long)number);
 
 		}
-	}	
+	}
 	return 0;
 }	
