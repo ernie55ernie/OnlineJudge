@@ -4,32 +4,19 @@ class Solution:
 		:type s: str
 		:rtype: int
 		"""
-		val = 0
-		left = 0
-		right = 0
-		right_left = 0
-		longest = 0
+		dp = [] # longest valid parentheses ends at #
 		for p in s:
-			if p == '(':
-				val += 1
-			elif p == ')':
-				val -= 1
-				right_left += 1
+			dp.append(0)
+		dp.append(0)
 
-			right += 1
-			if val < 0:
-				val = 0
-				left = right
-				right_left = 0
-			elif val == 0:
-				if right - left > longest:
-					print(right, left)
-					longest = right - left
-				right_left = 0
-		if val > 0 and right_left:
-			longest = right_left * 2
-			
-		return longest
+		for i in range(1, len(s)):
+			if s[i - 1] == '('and s[i] == ')' :
+				dp[i] = dp[i - 2] + 2
+			elif s[i - 1] == ')' and s[i] == ')':
+				if i > dp[i - 1] and s[i - dp[i - 1] - 1] == '(':
+					dp[i] = dp[i - 1] + dp[i - dp[i - 1] - 2] + 2
+
+		return max(dp)
 
 def test(s):
 	print(Solution().longestValidParentheses(s))
@@ -43,3 +30,5 @@ if __name__ == '__main__':
 	test('(()()((())))')
 	test('()(()')
 	test('(()(((()')
+	test('()(())')
+	test('(()))())(')
